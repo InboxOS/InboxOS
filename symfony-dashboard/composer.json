@@ -1,0 +1,66 @@
+{
+    "type": "project",
+    "license": "proprietary",
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "require": {
+        "php": ">=8.2",
+        "ext-ctype": "*",
+        "ext-iconv": "*",
+        "symfony/console": "7.0.*",
+        "symfony/dotenv": "7.0.*",
+        "symfony/flex": "^2",
+        "symfony/framework-bundle": "7.0.*",
+        "symfony/runtime": "7.0.*",
+        "symfony/twig-bundle": "7.0.*",
+        "symfony/ux-chartjs": "^2.0",
+        "symfony/webpack-encore-bundle": "^2.0",
+        "symfony/mercure": "^0.10",
+        "symfony/ux-notify": "^2.0",
+        "symfony/security-bundle": "7.0.*",
+        "symfony/validator": "7.0.*",
+        "symfony/serializer": "7.0.*",
+        "symfony/mailer": "7.0.*",
+        "symfony/monolog-bundle": "^3.10",
+        "doctrine/doctrine-bundle": "^2.11",
+        "doctrine/orm": "^3.0",
+        "twig/extra-bundle": "^2.12|^3.0",
+        "symfony/asset": "7.0.*",
+        "symfony/asset-mapper": "^7.0",
+        "league/flysystem": "^3.0",
+        "league/flysystem-aws-s3-v3": "^3.0",
+        "guzzlehttp/guzzle": "^7.0",
+        "phpmailer/phpmailer": "^6.9",
+        "webmozart/assert": "^1.11",
+        "pagerfanta/core": "^4.0",
+        "pagerfanta/twig": "^4.0",
+        "symfonycasts/verify-email-bundle": "^1.16",
+        "scheb/two-factor-bundle": "^6.0",
+        "endroid/qr-code": "^5.0",
+        "ramsey/uuid": "^4.0",
+        "lcobucci/jwt": "^5.0"
+    },
+    "require-dev": {
+        "symfony/debug-bundle": "7.0.*",
+        "symfony/maker-bundle": "^1.0",
+        "symfony/var-dumper": "7.0.*"
+    },
+    "config": {
+        "allow-plugins": {
+            "symfony/flex": true,
+            "symfony/runtime": true
+        },
+        "sort-packages": true,
+        "platform-check": false
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "App\\Tests\\": "tests/"
+        }
+    }
+}

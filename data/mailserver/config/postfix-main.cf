@@ -1,0 +1,67 @@
+# Postfix main configuration
+compatibility_level = 3.6
+
+# Network
+inet_interfaces = all
+inet_protocols = ipv4
+
+# Security
+smtpd_tls_security_level = may
+smtp_tls_security_level = may
+smtpd_tls_auth_only = yes
+smtpd_tls_cert_file = /etc/letsencrypt/live/${DOMAIN}/fullchain.pem
+smtpd_tls_key_file = /etc/letsencrypt/live/${DOMAIN}/privkey.pem
+smtpd_tls_protocols = !SSLv2, !SSLv3, !TLSv1, !TLSv1.1
+smtpd_tls_mandatory_protocols = !SSLv2, !SSLv3, !TLSv1, !TLSv1.1
+smtp_tls_protocols = !SSLv2, !SSLv3, !TLSv1, !TLSv1.1
+smtp_tls_mandatory_protocols = !SSLv2, !SSLv3, !TLSv1, !TLSv1.1
+tls_high_cipherlist = ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256
+
+# SASL Authentication
+smtpd_sasl_type = dovecot
+smtpd_sasl_path = private/auth
+smtpd_sasl_auth_enable = yes
+smtpd_sasl_security_options = noanonymous
+smtpd_sasl_local_domain = $myhostname
+
+# Restrictions
+smtpd_helo_restrictions = permit_mynetworks,
+    permit_sasl_authenticated,
+    reject_non_fqdn_helo_hostname,
+    reject_invalid_helo_hostname
+
+smtpd_sender_restrictions = permit_mynetworks,
+    permit_sasl_authenticated,
+    reject_non_fqdn_sender,
+    reject_unknown_sender_domain
+
+smtpd_recipient_restrictions = permit_mynetworks,
+    permit_sasl_authenticated,
+    reject_non_fqdn_recipient,
+    reject_unknown_recipient_domain,
+    reject_unauth_destination,
+    check_policy_service unix:private/policy
+
+# Limits
+message_size_limit = 26214400
+mailbox_size_limit = 0
+smtpd_error_sleep_time = 1s
+smtpd_soft_error_limit = 10
+smtpd_hard_error_limit = 20
+
+# Queue
+queue_run_delay = 300s
+minimal_backoff_time = 300s
+maximal_backoff_time = 4000s
+maximal_queue_lifetime = 5d
+bounce_queue_lifetime = 5d
+
+# MTA-STS
+smtp_tls_policy_maps = hash:/etc/postfix/tls_policy
+smtp_tls_security_level = secure
+smtp_tls_policy = secure
+
+# DANE
+smtp_tls_CApath = /etc/ssl/certs
+smtp_tls_fingerprint_digest = sha256
+smtp_tls_session_cache_database = btree:${data_directory}/smtp_scache

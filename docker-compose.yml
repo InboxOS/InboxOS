@@ -1,0 +1,196 @@
+
+
+services:
+  # Symfony Dashboard
+  symfony-dashboard:
+    build: ./symfony-dashboard
+    container_name: mail-dashboard
+    restart: unless-stopped
+    volumes:
+      - ./symfony-dashboard:/var/www/html
+      - ./data/dashboard/uploads:/var/www/html/public/uploads
+      - ./data/dashboard/backups:/var/www/html/var/backups
+      - ./certificates:/var/www/html/var/certificates
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - DATABASE_URL=mysql://mailadmin:${MYSQL_PASSWORD}@mysql/mail_dashboard
+      - MAIL_SERVER_HOST=mailserver
+      - REDIS_URL=redis://redis:6379
+      - APP_ENV=prod
+      - APP_SECRET=${APP_SECRET}
+      - MAILER_DSN=smtp://mailserver:587
+      - HORDE_URL=https://${DOMAIN}/webmail
+      - VIRTUAL_HOST=${DOMAIN}
+      - LETSENCRYPT_HOST=${DOMAIN}
+      - LETSENCRYPT_EMAIL=${ADMIN_EMAIL}
+    networks:
+      - mail-network
+    depends_on:
+      - mysql
+      - redis
+
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: mail-mysql
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: mail_dashboard
+      MYSQL_USER: mailadmin
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+      - ./backup-scripts:/backup-scripts
+    networks:
+      - mail-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # Redis for caching and sessions
+  redis:
+    image: redis:7-alpine
+    container_name: mail-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - ./data/redis:/data
+    networks:
+      - mail-network
+
+  # Nginx Reverse Proxy with Let's Encrypt
+  nginx:
+    build: ./nginx
+    container_name: mail-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "25:25"
+      - "587:587"
+      - "465:465"
+      - "993:993"
+      - "995:995"
+    volumes:
+      - ./nginx/sites:/etc/nginx/sites-enabled
+      - ./certificates:/etc/letsencrypt
+      - ./data/nginx/logs:/var/log/nginx
+      - ./data/nginx/www:/var/www/html
+    environment:
+      - DOMAIN=${DOMAIN}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+    networks:
+      - mail-network
+    depends_on:
+      - symfony-dashboard
+      - mailserver
+      - horde
+
+  # Docker Mailserver
+  mailserver:
+    container_name: mailserver
+    hostname: mail
+    domainname: ${DOMAIN}
+    restart: unless-stopped
+    image: docker.io/mailserver/docker-mailserver:latest
+    ports:
+      - "25:25"
+      - "587:587"
+      - "465:465"
+      - "143:143"
+      - "993:993"
+      - "110:110"
+      - "995:995"
+    volumes:
+      - ./data/mailserver/mail-data:/var/mail
+      - ./data/mailserver/mail-state:/var/mail-state
+      - ./data/mailserver/mail-logs:/var/log/mail
+      - ./data/mailserver/config:/tmp/docker-mailserver
+      - ./certificates:/etc/letsencrypt/live/${DOMAIN}
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - ENABLE_SPAMASSASSIN=1
+      - ENABLE_CLAMAV=1
+      - ENABLE_FAIL2BAN=1
+      - ENABLE_POSTGREY=1
+      - ENABLE_SASLAUTHD=0
+      - ONE_DIR=1
+      - DMS_DEBUG=0
+      - SSL_TYPE=letsencrypt
+      - SSL_DOMAIN=${DOMAIN}
+      - TLS_LEVEL=modern
+      - PERMIT_DOCKER=connected-networks
+      - DOVECOT_TLS=yes
+      - DOVECOT_SSL=yes
+      - ENABLE_QUOTAS=yes
+      - POSTMASTER_ADDRESS=${ADMIN_EMAIL}
+      - REPORT_RECIPIENT=${ADMIN_EMAIL}
+      - REPORT_SENDER=${ADMIN_EMAIL}
+      - SMTP_ONLY=no
+      - ENABLE_POP3=yes
+      - SPOOF_PROTECTION=1
+      - ENABLE_MANAGESIEVE=yes
+    cap_add:
+      - NET_ADMIN
+      - SYS_PTRACE
+    networks:
+      - mail-network
+
+  # Horde Webmail
+  horde:
+    image: docker.io/horde/horde:latest
+    container_name: mail-horde
+    restart: unless-stopped
+    volumes:
+      - ./data/horde/config:/var/www/horde/config
+      - ./data/horde/data:/var/www/horde/data
+      - ./certificates:/etc/ssl/certs
+    environment:
+      - VIRTUAL_HOST=webmail.${DOMAIN}
+      - LETSENCRYPT_HOST=webmail.${DOMAIN}
+      - LETSENCRYPT_EMAIL=${ADMIN_EMAIL}
+      - HORDE_DOMAIN=${DOMAIN}
+      - IMAP_SERVER=mailserver
+      - SMTP_SERVER=mailserver
+    networks:
+      - mail-network
+    depends_on:
+      - mailserver
+
+  # Certbot for Let's Encrypt
+  certbot:
+    image: certbot/certbot
+    container_name: mail-certbot
+    volumes:
+      - ./certificates:/etc/letsencrypt
+      - ./data/nginx/www:/var/www/html
+    command: certonly --webroot -w /var/www/html -d ${DOMAIN} -d webmail.${DOMAIN} --email ${ADMIN_EMAIL} --agree-tos --non-interactive --keep-until-expiring
+    networks:
+      - mail-network
+    depends_on:
+      - nginx
+
+  # Backup Service
+  backup:
+    image: alpine:latest
+    container_name: mail-backup
+    volumes:
+      - ./backup-scripts:/backup-scripts
+      - ./data:/backup/data
+      - ./backups:/backup/archives
+    command: >
+      sh -c "
+      echo '0 2 * * * /backup-scripts/backup.sh' >> /etc/crontabs/root &&
+      crond -f"
+    networks:
+      - mail-network
+
+networks:
+  mail-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

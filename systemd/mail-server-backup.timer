@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily backup of mail server
+Requires=mail-server.service
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+
+[Install]
+WantedBy=timers.target

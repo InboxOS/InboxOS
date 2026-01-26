@@ -1,0 +1,11 @@
+[Unit]
+Description=Mail Server Backup
+Requires=mail-server.service
+After=mail-server.service
+
+[Service]
+Type=oneshot
+User=mailadmin
+Group=mailadmin
+WorkingDirectory=/opt/email-server
+ExecStart=/opt/email-server/backup-scripts/backup.sh
