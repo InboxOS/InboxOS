@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+
+# System files
+.DS_Store
+Thumbs.db
+structure.txt
+validate.sh
+v
+
+
+
+# Logs
+*.log   
