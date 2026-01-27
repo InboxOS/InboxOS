@@ -7,6 +7,7 @@ use Symfony\Component\Process\Process;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
+use Psr\Log\LoggerInterface;
 use App\Entity\Domain;
 use App\Entity\MailUser;
 
@@ -17,7 +18,9 @@ class MailServerManager
 
     public function __construct(
         private ParameterBagInterface $params,
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private LoggerInterface $logger,
+        private ShellCommandRunner $commandRunner
     ) {
         $this->mailServerPath = $this->params->get('mail_server_config_path');
         $this->filesystem = new Filesystem();
@@ -27,7 +30,7 @@ class MailServerManager
     {
         try {
             // Add domain to docker-mailserver
-            $process = new Process([
+            $this->commandRunner->run([
                 'docker',
                 'exec',
                 'mailserver',
@@ -37,7 +40,6 @@ class MailServerManager
                 'domain',
                 $domain->getName()
             ]);
-            $process->mustRun();
 
             // Generate DKIM keys if enabled
             if ($domain->isEnableDkim()) {
@@ -46,8 +48,11 @@ class MailServerManager
 
             return true;
         } catch (ProcessFailedException $e) {
-            // Log error
-            error_log($e->getMessage());
+            $this->logger->error('Failed to create domain in mail server', [
+                'domain' => $domain->getName(),
+                'error' => $e->getMessage(),
+                'command' => $e->getProcess()->getCommandLine()
+            ]);
             return false;
         }
     }
@@ -56,7 +61,7 @@ class MailServerManager
     {
         $selector = $domain->getDkimSelector() ?? 'default';
 
-        $process = new Process([
+        $this->commandRunner->run([
             'docker',
             'exec',
             'mailserver',
@@ -71,19 +76,13 @@ class MailServerManager
             '-d',
             $domain->getName()
         ]);
-        $process->mustRun();
 
         // Read the generated keys
         $privateKeyPath = "/tmp/docker-mailserver/opendkim/keys/{$domain->getName()}/{$selector}.private";
         $publicKeyPath = "/tmp/docker-mailserver/opendkim/keys/{$domain->getName()}/{$selector}.txt";
 
-        $process = new Process(['docker', 'exec', 'mailserver', 'cat', $privateKeyPath]);
-        $process->mustRun();
-        $privateKey = $process->getOutput();
-
-        $process = new Process(['docker', 'exec', 'mailserver', 'cat', $publicKeyPath]);
-        $process->mustRun();
-        $publicKey = $process->getOutput();
+        $privateKey = $this->commandRunner->run(['docker', 'exec', 'mailserver', 'cat', $privateKeyPath]);
+        $publicKey = $this->commandRunner->run(['docker', 'exec', 'mailserver', 'cat', $publicKeyPath]);
 
         $domain->setDkimPrivateKey($privateKey);
         $domain->setDkimPublicKey($publicKey);
@@ -95,7 +94,7 @@ class MailServerManager
     public function createUser(MailUser $user): bool
     {
         try {
-            $process = new Process([
+            $this->commandRunner->run([
                 'docker',
                 'exec',
                 'mailserver',
@@ -105,7 +104,6 @@ class MailServerManager
                 $user->getEmail(),
                 $user->getPassword()
             ]);
-            $process->mustRun();
 
             // Set quota if specified
             if ($user->getQuotaLimit()) {
@@ -114,7 +112,11 @@ class MailServerManager
 
             return true;
         } catch (ProcessFailedException $e) {
-            error_log($e->getMessage());
+            $this->logger->error('Failed to create user in mail server', [
+                'email' => $user->getEmail(),
+                'error' => $e->getMessage(),
+                'command' => $e->getProcess()->getCommandLine()
+            ]);
             return false;
         }
     }
@@ -124,7 +126,7 @@ class MailServerManager
         $quota = $user->getQuotaLimit() . 'M';
         $email = $user->getEmail();
 
-        $process = new Process([
+        $this->commandRunner->run([
             'docker',
             'exec',
             'mailserver',
@@ -135,26 +137,19 @@ class MailServerManager
             $email,
             $quota
         ]);
-        $process->mustRun();
     }
 
     public function getServerStatistics(): array
     {
         try {
             // Get disk usage
-            $process = new Process(['docker', 'exec', 'mailserver', 'df', '-h', '/var/mail']);
-            $process->mustRun();
-            $diskOutput = $process->getOutput();
+            $diskOutput = $this->commandRunner->run(['docker', 'exec', 'mailserver', 'df', '-h', '/var/mail']);
 
             // Get active connections
-            $process = new Process(['docker', 'exec', 'mailserver', 'netstat', '-an']);
-            $process->mustRun();
-            $connectionsOutput = $process->getOutput();
+            $connectionsOutput = $this->commandRunner->run(['docker', 'exec', 'mailserver', 'netstat', '-an']);
 
             // Get mail queue
-            $process = new Process(['docker', 'exec', 'mailserver', 'mailq']);
-            $process->mustRun();
-            $queueOutput = $process->getOutput();
+            $queueOutput = $this->commandRunner->run(['docker', 'exec', 'mailserver', 'mailq']);
 
             return [
                 'disk_usage' => $this->parseDiskUsage($diskOutput),
@@ -172,7 +167,7 @@ class MailServerManager
 
     public function getStorageUsage(): array
     {
-        $process = new Process([
+        $used = (int) trim($this->commandRunner->run([
             'docker',
             'exec',
             'mailserver',
@@ -183,11 +178,9 @@ class MailServerManager
             '||',
             'echo',
             '0'
-        ]);
-        $process->mustRun();
-        $used = (int) trim($process->getOutput());
+        ]));
 
-        $process = new Process([
+        $free = (int) trim($this->commandRunner->run([
             'docker',
             'exec',
             'mailserver',
@@ -200,9 +193,7 @@ class MailServerManager
             '|',
             'awk',
             '\'{print $4}\''
-        ]);
-        $process->mustRun();
-        $free = (int) trim($process->getOutput());
+        ]));
 
         return [
             'used' => $used,
@@ -228,7 +219,7 @@ class MailServerManager
             $timestamp = date('Y-m-d-H-i-s');
             $backupFile = "{$backupPath}/mailserver-backup-{$timestamp}.tar.gz";
 
-            $process = new Process([
+            $output = $this->commandRunner->run([
                 'docker',
                 'exec',
                 'mailserver',
@@ -238,19 +229,20 @@ class MailServerManager
                 '/var/mail',
                 '/var/mail-state',
                 '/tmp/docker-mailserver'
-            ]);
+            ], 300);
 
-            $process->setTimeout(300);
-            $process->mustRun();
-
-            file_put_contents($backupFile, $process->getOutput());
+            file_put_contents($backupFile, $output);
 
             // Also backup database
             $this->backupDatabase($backupPath);
 
             return true;
         } catch (ProcessFailedException $e) {
-            error_log($e->getMessage());
+            $this->logger->error('Failed to backup mail server', [
+                'backup_path' => $backupPath,
+                'error' => $e->getMessage(),
+                'command' => $e->getProcess()->getCommandLine()
+            ]);
             return false;
         }
     }
@@ -260,7 +252,7 @@ class MailServerManager
         $timestamp = date('Y-m-d-H-i-s');
         $dbBackupFile = "{$backupPath}/database-backup-{$timestamp}.sql.gz";
 
-        $process = new Process([
+        $this->commandRunner->run([
             'mysqldump',
             '--host=mysql',
             '--user=mailadmin',
@@ -271,7 +263,6 @@ class MailServerManager
             '>',
             $dbBackupFile
         ]);
-        $process->mustRun();
     }
 
     public function generateMtaStsPolicy(Domain $domain): string
@@ -314,5 +305,46 @@ mx: mail2.%s',
     private function getServerIpv6(): string
     {
         return $_ENV['SERVER_IPV6'] ?? 'your:server:ipv6';
+    }
+
+    private function parseDiskUsage(string $output): array
+    {
+        $lines = explode("\n", trim($output));
+        if (count($lines) < 2) {
+            return [];
+        }
+
+        $parts = preg_split('/\s+/', $lines[1]);
+
+        return [
+            'total' => $parts[1] ?? '0',
+            'used' => $parts[2] ?? '0',
+            'free' => $parts[3] ?? '0',
+            'percent' => $parts[4] ?? '0%',
+        ];
+    }
+
+    private function parseConnections(string $output): int
+    {
+        return substr_count($output, 'ESTABLISHED');
+    }
+
+    private function parseMailQueue(string $output): int
+    {
+        if (str_contains($output, 'Mail queue is empty')) {
+            return 0;
+        }
+
+        $lines = explode("\n", trim($output));
+        $count = 0;
+
+        foreach ($lines as $line) {
+            // Match Postfix queue ID line format (begins with ID)
+            if (preg_match('/^[A-F0-9]+\s/', $line)) {
+                $count++;
+            }
+        }
+
+        return $count;
     }
 }

@@ -1,4 +1,4 @@
-FROM nginx:alpine
+FROM docker.io/library/nginx:alpine
 
 # Install certbot and tools
 RUN apk add --no-cache \
@@ -9,7 +9,7 @@ RUN apk add --no-cache \
     gettext
 
 # Copy configuration
-COPY nginx.conf /etc/nginx/nginx.conf
+COPY nginx.conf.template /etc/nginx/nginx.conf.template
 COPY sites/ /etc/nginx/sites-enabled/
 
 # Create SSL directory

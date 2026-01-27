@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Mail Server Monitoring every 5 minutes
+Requires=mail-server-monitor.service
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+Unit=mail-server-monitor.service
+
+[Install]
+WantedBy=timers.target

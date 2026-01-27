@@ -11,14 +11,19 @@ use Doctrine\ORM\EntityManagerInterface;
 use App\Entity\Domain;
 use App\Entity\MailUser;
 use App\Entity\ApiKey;
-use App\Service\MailServerManager;
+use App\Service\RateLimiter;
 
 #[Route('/api')]
 class ApiController extends AbstractController
 {
+    public function __construct(
+        private RateLimiter $rateLimiter
+    ) {}
+
     #[Route('/domains', name: 'api_domains_list', methods: ['GET'])]
-    public function listDomains(EntityManagerInterface $entityManager): JsonResponse
+    public function listDomains(Request $request, EntityManagerInterface $entityManager): JsonResponse
     {
+        $this->applyRateLimit($request);
         $this->checkApiAccess();
 
         $domains = $entityManager->getRepository(Domain::class)->findAll();
@@ -41,8 +46,9 @@ class ApiController extends AbstractController
     }
 
     #[Route('/domains/{id}', name: 'api_domains_get', methods: ['GET'])]
-    public function getDomain(int $id, EntityManagerInterface $entityManager): JsonResponse
+    public function getDomain(Request $request, int $id, EntityManagerInterface $entityManager): JsonResponse
     {
+        $this->applyRateLimit($request);
         $this->checkApiAccess();
 
         $domain = $entityManager->getRepository(Domain::class)->find($id);
@@ -73,9 +79,17 @@ class ApiController extends AbstractController
         EntityManagerInterface $entityManager,
         MailServerManager $mailServerManager
     ): JsonResponse {
+        $this->applyRateLimit($request);
         $this->checkApiAccess();
 
         $data = json_decode($request->getContent(), true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            return $this->json([
+                'success' => false,
+                'error' => 'Invalid JSON payload',
+            ], 400);
+        }
 
         $domain = new Domain();
         $domain->setName($data['name'] ?? '');
@@ -84,6 +98,12 @@ class ApiController extends AbstractController
         $errors = [];
         if (empty($domain->getName())) {
             $errors[] = 'Domain name is required';
+        } elseif (!preg_match('/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/', $domain->getName())) {
+            $errors[] = 'Invalid domain name format';
+        }
+
+        if ($domain->getQuotaMb() < 1 || $domain->getQuotaMb() > 10000) {
+            $errors[] = 'Quota must be between 1 and 10000 MB';
         }
 
         if ($errors) {
@@ -120,9 +140,17 @@ class ApiController extends AbstractController
         EntityManagerInterface $entityManager,
         MailServerManager $mailServerManager
     ): JsonResponse {
+        $this->applyRateLimit($request);
         $this->checkApiAccess();
 
         $data = json_decode($request->getContent(), true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            return $this->json([
+                'success' => false,
+                'error' => 'Invalid JSON payload',
+            ], 400);
+        }
 
         $user = new MailUser();
         $user->setEmail($data['email'] ?? '');
@@ -137,9 +165,18 @@ class ApiController extends AbstractController
         $errors = [];
         if (empty($user->getEmail())) {
             $errors[] = 'Email is required';
+        } elseif (!filter_var($user->getEmail(), FILTER_VALIDATE_EMAIL)) {
+            $errors[] = 'Invalid email format';
         }
+
         if (empty($data['password'])) {
             $errors[] = 'Password is required';
+        } elseif (strlen($data['password']) < 8) {
+            $errors[] = 'Password must be at least 8 characters long';
+        }
+
+        if ($user->getQuotaLimit() < 1 || $user->getQuotaLimit() > 10000) {
+            $errors[] = 'Quota must be between 1 and 10000 MB';
         }
 
         if ($errors) {
@@ -172,9 +209,11 @@ class ApiController extends AbstractController
 
     #[Route('/stats', name: 'api_stats', methods: ['GET'])]
     public function getStats(
+        Request $request,
         MailServerManager $mailServerManager,
         EntityManagerInterface $entityManager
     ): JsonResponse {
+        $this->applyRateLimit($request);
         $this->checkApiAccess();
 
         $domainCount = $entityManager->getRepository(Domain::class)->count([]);
@@ -222,6 +261,12 @@ class ApiController extends AbstractController
         // Update last used
         $apiKeyEntity->setLastUsed(new \DateTime());
         $entityManager->flush();
+    }
+
+    private function applyRateLimit(Request $request): void
+    {
+        $identifier = $request->getClientIp();
+        $this->rateLimiter->checkRateLimit($request, $identifier, 100, 3600); // 100 requests per hour
     }
 
     private function getApiKeyFromRequest(): ?string

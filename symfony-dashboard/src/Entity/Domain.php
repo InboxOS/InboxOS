@@ -17,7 +17,7 @@ class Domain
 
     #[ORM\Column(length: 255, unique: true)]
     #[Assert\NotBlank]
-    #[Assert\Domain]
+    #[Assert\Hostname]
     private ?string $name = null;
 
     #[ORM\Column]
@@ -73,6 +73,49 @@ class Domain
     public function setUpdatedAtValue(): void
     {
         $this->updatedAt = new \DateTimeImmutable();
+    }
+
+    public function getName(): ?string
+    {
+        return $this->name;
+    }
+
+    public function setName(string $name): self
+    {
+        $this->name = $name;
+
+        return $this;
+    }
+    
+    public function isEnableDkim(): bool
+    {
+        return $this->enableDkim;
+    }
+    
+    public function getDkimSelector(): ?string
+    {
+        return $this->dkimSelector;
+    }
+    
+    public function setDkimPrivateKey(?string $dkimPrivateKey): self
+    {
+        $this->dkimPrivateKey = $dkimPrivateKey;
+
+        return $this;
+    }
+
+    public function setDkimPublicKey(?string $dkimPublicKey): self
+    {
+        $this->dkimPublicKey = $dkimPublicKey;
+
+        return $this;
+    }
+
+    public function setDkimSelector(?string $dkimSelector): self
+    {
+        $this->dkimSelector = $dkimSelector;
+
+        return $this;
     }
 
     // Getters and setters...

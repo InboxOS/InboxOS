@@ -1,17 +1,44 @@
 # Dependencies
 node_modules/
+vendor/
 
 # Environment variables
 .env
+.env.local
+.env.*.local
 
 # System files
 .DS_Store
 Thumbs.db
 structure.txt
 validate.sh
-v
-
-
+README-LOCAL.md
 
 # Logs
-*.log   
+*.log
+/var/log/*
+/data/*/logs/*
+
+# Backups (keep local backups but ignore in git)
+/backups/
+/data/mysql/
+/data/redis/
+
+
+# SSL certificates
+/certificates/
+
+# IDE
+.vscode/
+.idea/
+
+# Symfony
+/var/
+
+# Testing
+/tests/coverage/
+
+# Temporary files
+*.tmp
+*.swp
+*.bak   

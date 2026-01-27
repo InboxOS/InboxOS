@@ -6,12 +6,62 @@ set -e
 
 echo "🚀 Starting Mail Server Deployment..."
 
+# ------------------------------------------------------------------
+# 1. Automatic Socket Detection
+# ------------------------------------------------------------------
+if [ -w /var/run/docker.sock ]; then
+    SOCKET_PATH="/var/run/docker.sock"
+elif [ -w /run/podman/podman.sock ]; then
+    SOCKET_PATH="/run/podman/podman.sock"
+elif [ -n "$XDG_RUNTIME_DIR" ] && [ -w "$XDG_RUNTIME_DIR/podman/podman.sock" ]; then
+    SOCKET_PATH="$XDG_RUNTIME_DIR/podman/podman.sock"
+else
+    echo "🔍 probing podman..."
+    SOCKET_PATH=$(podman info --format '{{.Host.RemoteSocket.Path}}')
+fi
+
+echo "✅ Detected Socket: $SOCKET_PATH"
+export DOCKER_SOCKET=$SOCKET_PATH
+
 # Check if .env exists
 if [ ! -f ".env" ]; then
     echo "Creating .env file from template..."
-    cp .env.example .env
-    echo "Please edit .env file with your configuration"
-    exit 1
+    if [ -f ".env.example" ]; then
+        cp .env.example .env
+    else
+        # Fallback generator if example is missing
+        echo "📝 .env.example not found. Generating default .env..."
+        cat <<EOF > .env
+DOMAIN=localhost
+ADMIN_EMAIL=admin@example.com
+MYSQL_ROOT_PASSWORD=root
+MYSQL_PASSWORD=password
+MYSQL_DATABASE=mail_dashboard
+APP_SECRET=$(openssl rand -hex 16)
+REDIS_PASSWORD=redispass
+DEFAULT_QUOTA_MB=1024
+MAX_MESSAGE_SIZE=26214400
+TZ=UTC
+POSTMASTER_ADDRESS=postmaster@localhost
+REPORT_RECIPIENT=admin@example.com
+SERVER_IP=127.0.0.1
+LETSENCRYPT_EMAIL=admin@example.com
+LETSENCRYPT_HOST=localhost
+HORDE_ADMIN_PASSWORD=hordepass
+MAIL_SERVER_PATH=./data/mail
+CERTIFICATE_PATH=./certificates
+DKIM_SELECTOR=mail
+SPF_RECORD="v=spf1 mx ~all"
+DMARC_RECORD="v=DMARC1; p=none; rua=mailto:dmarc@localhost"
+EOF
+    fi
+else
+    echo "ℹ️  Using existing .env configuration."
+fi
+
+# Ensure DOCKER_SOCKET is in .env or exported
+if ! grep -q "DOCKER_SOCKET" .env; then
+     echo "DOCKER_SOCKET=$SOCKET_PATH" >> .env
 fi
 
 # Load environment variables
@@ -31,7 +81,6 @@ mkdir -p backups
 
 # Set permissions
 echo "Setting permissions..."
-chmod -R 755 data/
 chmod +x backup-scripts/*.sh
 chmod +x deploy.sh
 
@@ -71,7 +120,6 @@ sleep 30
 echo "Initializing Symfony database..."
 $COMPOSE_CMD exec symfony-dashboard php bin/console doctrine:database:create --if-not-exists
 $COMPOSE_CMD exec symfony-dashboard php bin/console doctrine:schema:update --force
-$COMPOSE_CMD exec symfony-dashboard php bin/console doctrine:fixtures:load -n
 
 # Generate Let's Encrypt certificates
 echo "Generating Let's Encrypt certificates..."
@@ -83,6 +131,22 @@ echo "Creating admin user..."
 $COMPOSE_CMD exec symfony-dashboard php bin/console app:create-admin \
     --email=${ADMIN_EMAIL} \
     --password=ChangeMe123
+
+# Configure startup persistence
+echo "Configuring automatic startup on reboot..."
+if [ "$(id -u)" -eq 0 ]; then
+    # Rootful mode
+    systemctl enable --now podman-restart
+    echo "✅ Enabled podman-restart service (Rootful)."
+else
+    # Rootless mode
+    if command -v loginctl >/dev/null; then
+        loginctl enable-linger $(whoami)
+        echo "✅ Enabled lingering for user $(whoami)."
+    fi
+    systemctl --user enable --now podman-restart
+    echo "✅ Enabled podman-restart service (Rootless)."
+fi
 
 echo "✅ Deployment completed!"
 echo ""

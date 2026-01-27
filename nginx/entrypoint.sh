@@ -3,6 +3,7 @@
 set -e
 
 # Replace environment variables in nginx configuration
+envsubst '${DOMAIN}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
 envsubst '${DOMAIN}' < /etc/nginx/sites-enabled/dashboard.conf.template > /etc/nginx/sites-enabled/dashboard.conf
 envsubst '${DOMAIN}' < /etc/nginx/sites-enabled/webmail.conf.template > /etc/nginx/sites-enabled/webmail.conf
 

@@ -12,32 +12,28 @@ use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Exception\CustomUserMessageAuthenticationException;
 use Symfony\Component\Security\Core\Exception\InvalidCsrfTokenException;
 use Symfony\Component\Security\Core\Security;
-use Symfony\Component\Security\Core\User\UserInterface;
-use Symfony\Component\Security\Core\User\UserProviderInterface;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
-use Symfony\Component\Security\Guard\Authenticator\AbstractFormLoginAuthenticator;
+use Symfony\Component\Security\Http\Authenticator\AbstractAuthenticator;
+use Symfony\Component\Security\Http\Authenticator\Passport\Badge\CsrfTokenBadge;
+use Symfony\Component\Security\Http\Authenticator\Passport\Badge\RememberMeBadge;
+use Symfony\Component\Security\Http\Authenticator\Passport\Badge\UserBadge;
+use Symfony\Component\Security\Http\Authenticator\Passport\Credentials\PasswordCredentials;
+use Symfony\Component\Security\Http\Authenticator\Passport\Passport;
+use Symfony\Component\Security\Http\EntryPoint\AuthenticationEntryPointInterface;
 use Symfony\Component\Security\Http\Util\TargetPathTrait;
 
-class LoginFormAuthenticator extends AbstractFormLoginAuthenticator
+class LoginFormAuthenticator extends AbstractAuthenticator implements AuthenticationEntryPointInterface
 {
     use TargetPathTrait;
 
     public const LOGIN_ROUTE = 'app_login';
 
-    private $entityManager;
-    private $urlGenerator;
-    private $csrfTokenManager;
-
     public function __construct(
-        EntityManagerInterface $entityManager,
-        UrlGeneratorInterface $urlGenerator,
-        CsrfTokenManagerInterface $csrfTokenManager
-    ) {
-        $this->entityManager = $entityManager;
-        $this->urlGenerator = $urlGenerator;
-        $this->csrfTokenManager = $csrfTokenManager;
-    }
+        private EntityManagerInterface $entityManager,
+        private UrlGeneratorInterface $urlGenerator,
+        private CsrfTokenManagerInterface $csrfTokenManager
+    ) {}
 
     public function supports(Request $request): bool
     {
@@ -45,53 +41,47 @@ class LoginFormAuthenticator extends AbstractFormLoginAuthenticator
             && $request->isMethod('POST');
     }
 
-    public function getCredentials(Request $request): array
+    public function authenticate(Request $request): Passport
     {
-        $credentials = [
-            'email' => $request->request->get('email'),
-            'password' => $request->request->get('password'),
-            'csrf_token' => $request->request->get('_csrf_token'),
-        ];
+        $email = $request->request->get('email', '');
+        $password = $request->request->get('password', '');
+        $csrfToken = $request->request->get('_csrf_token');
 
-        $request->getSession()->set(
-            Security::LAST_USERNAME,
-            $credentials['email']
-        );
+        if (!$csrfToken) {
+            throw new InvalidCsrfTokenException('Invalid CSRF token.');
+        }
 
-        return $credentials;
-    }
-
-    public function getUser($credentials, UserProviderInterface $userProvider): ?UserInterface
-    {
-        $token = new CsrfToken('authenticate', $credentials['csrf_token']);
+        $token = new CsrfToken('authenticate', $csrfToken);
         if (!$this->csrfTokenManager->isTokenValid($token)) {
-            throw new InvalidCsrfTokenException();
+            throw new InvalidCsrfTokenException('Invalid CSRF token.');
         }
 
-        $user = $this->entityManager->getRepository(MailUser::class)
-            ->findOneBy(['email' => $credentials['email']]);
+        $request->getSession()->set(Security::LAST_USERNAME, $email);
 
-        if (!$user) {
-            throw new CustomUserMessageAuthenticationException('Invalid credentials.');
-        }
+        return new Passport(
+            new UserBadge($email, function ($userIdentifier) {
+                $user = $this->entityManager->getRepository(MailUser::class)->findOneBy(['email' => $userIdentifier]);
 
-        if (!$user->isActive()) {
-            throw new CustomUserMessageAuthenticationException('Account is disabled.');
-        }
+                if (!$user) {
+                    throw new CustomUserMessageAuthenticationException('Invalid credentials.');
+                }
 
-        return $user;
+                if (!$user->isActive()) {
+                    throw new CustomUserMessageAuthenticationException('Account is disabled.');
+                }
+
+                return $user;
+            }),
+            new PasswordCredentials($password),
+            [
+                new CsrfTokenBadge('authenticate', $csrfToken),
+                new RememberMeBadge(),
+            ]
+        );
     }
 
-    public function checkCredentials($credentials, UserInterface $user): bool
+    public function onAuthenticationSuccess(Request $request, TokenInterface $token, string $firewallName): ?Response
     {
-        return password_verify($credentials['password'], $user->getPassword());
-    }
-
-    public function onAuthenticationSuccess(
-        Request $request,
-        TokenInterface $token,
-        string $firewallName
-    ): ?Response {
         $user = $token->getUser();
 
         // Update last login
@@ -107,8 +97,21 @@ class LoginFormAuthenticator extends AbstractFormLoginAuthenticator
         return new RedirectResponse($this->urlGenerator->generate('app_dashboard'));
     }
 
-    protected function getLoginUrl(): string
+    public function onAuthenticationFailure(Request $request, \Symfony\Component\Security\Core\Exception\AuthenticationException $exception): ?Response
     {
-        return $this->urlGenerator->generate(self::LOGIN_ROUTE);
+        if ($request->hasSession()) {
+            $request->getSession()->set(Security::AUTHENTICATION_ERROR, $exception);
+        }
+
+        $url = $this->urlGenerator->generate(self::LOGIN_ROUTE);
+
+        return new RedirectResponse($url);
+    }
+
+    public function start(Request $request, \Symfony\Component\Security\Core\Exception\AuthenticationException $authException = null): Response
+    {
+        $url = $this->urlGenerator->generate(self::LOGIN_ROUTE);
+
+        return new RedirectResponse($url);
     }
 }

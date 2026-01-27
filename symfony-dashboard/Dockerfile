@@ -1,4 +1,4 @@
-FROM php:8.3-fpm-alpine
+FROM docker.io/library/php:8.3-fpm-alpine
 
 # Install system dependencies
 RUN apk add --no-cache \
@@ -10,14 +10,15 @@ RUN apk add --no-cache \
     libzip-dev \
     zip \
     unzip \
-    nodejs \
-    npm \
     supervisor \
     python3 \
     py3-pip \
     docker-cli \
     openssl \
-    libxml2-dev
+    libxml2-dev \
+    linux-headers \
+    icu-dev \
+    $PHPIZE_DEPS
 
 # Install PHP extensions
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
@@ -34,7 +35,7 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-enable redis
 
 # Install Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+COPY --from=docker.io/library/composer:latest /usr/bin/composer /usr/bin/composer
 
 # Create working directory
 WORKDIR /var/www/html
@@ -43,16 +44,15 @@ WORKDIR /var/www/html
 COPY . .
 
 # Install dependencies
-RUN composer install --no-dev --optimize-autoloader \
-    && npm install \
-    && npm run build
+RUN composer install --no-dev --optimize-autoloader
 
 # Set permissions
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html
 
 # Create log directory for supervisor
-RUN mkdir -p /var/log/supervisor
+RUN mkdir -p /var/log/supervisor \
+    && chown -R www-data:www-data /var/log/supervisor
 
 # Copy supervisor configuration
 COPY supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf

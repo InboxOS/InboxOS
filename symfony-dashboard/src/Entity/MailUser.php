@@ -67,9 +67,69 @@ class MailUser implements UserInterface, PasswordAuthenticatedUserInterface
         return array_unique($roles);
     }
 
+    public function getPassword(): ?string
+    {
+        return $this->password;
+    }
+
+    public function setPassword(string $password): self
+    {
+        $this->password = $password;
+
+        return $this;
+    }
+
     public function eraseCredentials(): void
     {
         // If you store any temporary, sensitive data on the user, clear it here
+    }
+
+    public function setEmail(string $email): self
+    {
+        $this->email = $email;
+
+        return $this;
+    }
+
+    public function getEmail(): ?string
+    {
+        return $this->email;
+    }
+
+    public function setDomain(?Domain $domain): self
+    {
+        $this->domain = $domain;
+
+        return $this;
+    }
+
+    public function getDomain(): ?Domain
+    {
+        return $this->domain;
+    }
+
+    public function getQuotaUsed(): ?int
+    {
+        return $this->quotaUsed;
+    }
+
+    public function setQuotaUsed(?int $quotaUsed): self
+    {
+        $this->quotaUsed = $quotaUsed;
+
+        return $this;
+    }
+
+    public function getQuotaLimit(): ?int
+    {
+        return $this->quotaLimit;
+    }
+
+    public function setQuotaLimit(?int $quotaLimit): self
+    {
+        $this->quotaLimit = $quotaLimit;
+
+        return $this;
     }
 
     // Getters and setters...

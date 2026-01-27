@@ -1,0 +1,11 @@
+[Unit]
+Description=Mail Server Monitoring
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/email-server/scripts/monitor.sh
+User=root
+
+[Install]
+WantedBy=multi-user.target
