@@ -1,0 +1,14 @@
+server {
+    listen 80;
+    server_name webmail.${DOMAIN};
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    # Horde is optional; keep the vhost valid even when it's not running.
+    location / {
+        return 404;
+    }
+}
+

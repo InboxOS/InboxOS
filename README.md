@@ -1,61 +1,64 @@
-# inboxOS 🚀
+# Podman/Docker Email Server + Symfony Dashboard
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/inboxOS)
-[![Deploy on DigitalOcean](https://www.deploytodo.com/do-btn-blue.svg)](https://marketplace.digitalocean.com/apps/inboxOS)
-[![Try on PikaPods](https://www.pikapods.com/static/run-button.svg)](https://www.pikapods.com/pods?run=inboxOS)
+Self-hosted email server stack with:
+- `docker-mailserver` (SMTP/IMAP/POP3)
+- Symfony 7.4 dashboard (admin UI)
+- Optional webmail (Horde) via a compose profile
 
-## ✨ Why inboxOS?
+## Quick Start (localhost, no certificates)
 
-| Feature | inboxOS | Traditional Solutions |
-|---------|-----------|----------------------|
-| **Setup Time** | 5 minutes | Days/weeks |
-| **Monthly Cost** | $0 (self-hosted) | $6-12/user |
-| **Security** | Enterprise-grade | Basic |
-| **Control** | Complete | Limited |
-| **Customization** | Unlimited | None |
-
-## 🚀 Quick Start
+This mode is intended for local development/testing. **No certificates are created** when `DOMAIN=localhost`.
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/inboxOS/inboxOS.git
-cd inboxOS
-
-# 2. Configure (edit just 3 values!)
 cp .env.example .env
-nano .env  # Set DOMAIN, ADMIN_EMAIL, passwords
 
-# 3. Deploy
+# Required for localhost dev:
+# - DOMAIN=localhost
+# - MAILSERVER_SSL_TYPE=none
+# - ADMIN_PASSWORD=...  (dashboard login password)
+nano .env
+
 ./deploy.sh
-
-# 4. Access your dashboard
-# Open https://yourdomain.com
 ```
-# Contributing to InboxOS
 
-## Contributor License Agreement (CLA)
+Open the dashboard:
+- `http://localhost:${HTTP_PORT:-8080}/login`
 
-By contributing to InboxOS, you agree that:
+## Quick Start (production with Let’s Encrypt)
 
-1. You grant InboxOS Inc. a perpetual, worldwide, non-exclusive, 
-   royalty-free license to use your contributions.
+Rootful (recommended) is simplest because it can bind privileged ports (25/80/443/...).
 
-2. Your contributions will be licensed under both:
-   - InboxOS Source Available License (MSAL)
-   - InboxOS Commercial License
+```bash
+cp .env.example .env
+nano .env   # Set DOMAIN=example.com, ADMIN_EMAIL, passwords, SERVER_IP, etc.
 
-3. You have the right to grant these licenses for your contributions.
+sudo ./deploy.sh
+```
 
-4. Your contributions are your original work.
+Open the dashboard:
+- `https://example.com`
 
-## How to Contribute
+## Rootless Podman notes (important)
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+Rootless Podman cannot bind ports <1024. The stack supports **high-port overrides** via `.env`:
+- `HTTP_PORT`, `HTTPS_PORT`
+- `SMTP_PORT`, `SUBMISSION_PORT`, `SMTPS_PORT`
+- `IMAP_PORT`, `IMAPS_PORT`
+- `POP3_PORT`, `POP3S_PORT`
 
-## Code of Conduct
+See `.env.example` for defaults.
 
-We follow the Contributor Covenant Code of Conduct. Be respectful and 
-professional in all interactions.
+## Compose profiles
+
+- **`letsencrypt`**: enables `certbot` (used automatically by `deploy.sh` when `DOMAIN != localhost`)
+- **`webmail`**: enables `horde` (optional; may require changing the image if it’s not publicly pullable)
+
+Manual examples:
+
+```bash
+# Production TLS services
+podman-compose --profile letsencrypt up -d --build
+
+# Optional webmail (if configured)
+podman-compose --profile webmail up -d
+```

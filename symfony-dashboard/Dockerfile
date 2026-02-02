@@ -43,6 +43,9 @@ WORKDIR /var/www/html
 # Copy application files
 COPY . .
 
+# Ensure we don't ship stale caches/logs from the build context
+RUN rm -rf var/cache/* var/log/* || true
+
 # Install dependencies
 RUN composer install --no-dev --optimize-autoloader
 
@@ -51,8 +54,8 @@ RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html
 
 # Create log directory for supervisor
-RUN mkdir -p /var/log/supervisor \
-    && chown -R www-data:www-data /var/log/supervisor
+RUN mkdir -p /var/log/supervisor /var/www/html/var/log /var/www/html/var/cache \
+    && chown -R www-data:www-data /var/log/supervisor /var/www/html/var
 
 # Copy supervisor configuration
 COPY supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf

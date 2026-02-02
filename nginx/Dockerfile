@@ -10,6 +10,7 @@ RUN apk add --no-cache \
 
 # Copy configuration
 COPY nginx.conf.template /etc/nginx/nginx.conf.template
+COPY nginx.http.conf.template /etc/nginx/nginx.http.conf.template
 COPY sites/ /etc/nginx/sites-enabled/
 
 # Create SSL directory

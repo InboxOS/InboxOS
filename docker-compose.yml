@@ -11,16 +11,22 @@ services:
       - ./certificates:/var/www/html/var/certificates
     environment:
       - DOCKER_HOST=tcp://socket-proxy:2375
-      - DATABASE_URL=mysql://mailadmin:${MYSQL_PASSWORD}@mysql/mail_dashboard
+      - DATABASE_URL=mysql://mailadmin:${MYSQL_PASSWORD}@mysql/${MYSQL_DATABASE}
       - MAIL_SERVER_HOST=mailserver
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
       - APP_ENV=prod
       - APP_SECRET=${APP_SECRET}
+      - TWO_FACTOR_ISSUER=${TWO_FACTOR_ISSUER:-MailServer_Dashboard}
       - MAILER_DSN=smtp://mailserver:587
-      - HORDE_URL=https://${DOMAIN}/webmail
+      # Public URL for the (optional) webmail UI.
+      - HORDE_URL=${HORDE_URL}
       - VIRTUAL_HOST=${DOMAIN}
-      - LETSENCRYPT_HOST=${DOMAIN}
-      - LETSENCRYPT_EMAIL=${ADMIN_EMAIL}
+      - LETSENCRYPT_HOST=${LETSENCRYPT_HOST}
+      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
+      - DEFAULT_URI=${DEFAULT_URI:-http://localhost:8080}
+      - MERCURE_URL=${MERCURE_URL:-http://localhost:3000/.well-known/mercure}
+      - MERCURE_PUBLIC_URL=${MERCURE_PUBLIC_URL:-http://localhost:3000/.well-known/mercure}
+      - MERCURE_JWT_SECRET=${MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
     networks:
       - mail-network
     depends_on:
@@ -28,7 +34,8 @@ services:
       - redis
       - socket-proxy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health", "||", "exit", "1"]
+      # This container runs php-fpm (no HTTP server inside), so check the process.
+      test: ["CMD-SHELL", "pgrep -x php-fpm >/dev/null || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -57,11 +64,12 @@ services:
     command: --default-authentication-plugin=mysql_native_password
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: mail_dashboard
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_USER: mailadmin
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
       - ./data/mysql:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d:ro
       - ./backup-scripts:/backup-scripts
     networks:
       - mail-network
@@ -91,12 +99,16 @@ services:
     container_name: mail-nginx
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      # Rootless Podman cannot bind <1024; override via .env if needed.
+      - "${HTTP_PORT:-8080}:80"
+      - "${HTTPS_PORT:-8443}:443"
     volumes:
       - ./data/nginx/www:/var/www/html
+      # Needed so $realpath_root and try_files can resolve /public/index.php
+      - ./symfony-dashboard/public:/var/www/html/public:ro
       - ./certificates:/etc/letsencrypt
     environment:
+      - DOMAIN=${DOMAIN}
       - ADMIN_EMAIL=${ADMIN_EMAIL}
     networks:
       - mail-network
@@ -107,18 +119,22 @@ services:
 
   # Horde Webmail
   horde:
+    profiles:
+      - webmail
     # switched to a community image because official horde/horde is private/missing
     image: docker.io/tkoerner/horde:latest
     container_name: mail-horde
     restart: unless-stopped
     environment:
       - DB_DRIVER=mysqli
-      - DB_USER=mailadmin
-      - DB_PASS=${MYSQL_PASSWORD}
+      # Horde uses its own DB credentials (separate from dashboard DB user/admin login)
+      - DB_USER=${HORDE_DB_USER}
+      - DB_PASS=${HORDE_DB_PASSWORD}
       - DB_HOST=mysql
-      - DB_NAME=horde
-      - HORDEDB_ADMIN_USER=admin
-      - HORDEDB_ADMIN_PASS=${MYSQL_PASSWORD}
+      - DB_NAME=${HORDE_DB_NAME:-horde}
+      # DB admin for initial schema setup (use same dedicated Horde DB user)
+      - HORDEDB_ADMIN_USER=${HORDE_DB_USER}
+      - HORDEDB_ADMIN_PASS=${HORDE_DB_PASSWORD}
     networks:
       - mail-network
     depends_on:
@@ -128,28 +144,30 @@ services:
   # Docker Mailserver
   mailserver:
     container_name: mailserver
-    hostname: mail
-    domainname: ${DOMAIN}
+    # docker-mailserver requires a fully-qualified hostname; podman-compose may not apply `domainname:`.
+    hostname: mail.${DOMAIN}
     restart: unless-stopped
     image: docker.io/mailserver/docker-mailserver:latest
     ports:
-      - "25:25"
-      - "587:587"
-      - "465:465"
-      - "143:143"
-      - "993:993"
-      - "110:110"
-      - "995:995"
+      # Rootless Podman cannot bind <1024; override via .env if needed.
+      - "${SMTP_PORT:-1025}:25"
+      - "${SUBMISSION_PORT:-1587}:587"
+      - "${SMTPS_PORT:-1465}:465"
+      - "${IMAP_PORT:-1143}:143"
+      - "${IMAPS_PORT:-1993}:993"
+      - "${POP3_PORT:-1110}:110"
+      - "${POP3S_PORT:-1995}:995"
     volumes:
-      - ./data/mail/mail-data:/var/mail
-      - ./data/mail/mail-state:/var/mail-state
-      - ./data/mail/mail-logs:/var/log/mail
-      - ./data/mail/config:/tmp/docker-mailserver
+      - ./data/mailserver/mail-data:/var/mail
+      - ./data/mailserver/mail-state:/var/mail-state
+      - ./data/mailserver/mail-logs:/var/log/mail
+      - ./data/mailserver/config:/tmp/docker-mailserver
       - ./certificates:/etc/letsencrypt
       - /etc/localtime:/etc/localtime:ro
     environment:
       - ENABLE_MANAGESIEVE=yes
-      - SSL_TYPE=letsencrypt
+      # For localhost development, set MAILSERVER_SSL_TYPE=none in .env to avoid certificate generation.
+      - SSL_TYPE=${MAILSERVER_SSL_TYPE:-letsencrypt}
       - PERMIT_DOCKER=network
       - SPOOF_PROTECTION=1
     cap_add:
@@ -162,6 +180,8 @@ services:
 
   # Certbot (Disable for localhost development)
   certbot:
+    profiles:
+      - letsencrypt
     image: docker.io/certbot/certbot:latest
     container_name: mail-certbot
     volumes:

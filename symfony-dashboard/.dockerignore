@@ -1,0 +1,8 @@
+/.git
+/var/cache
+/var/log
+/var/sessions
+/vendor
+/node_modules
+.env.local
+.env.*.local

@@ -6,7 +6,9 @@
 
 # Put parameters here that don't need to change on each machine where the app is deployed
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
-parameters: {}
+parameters:
+    # Path inside the mailserver container where docker-mailserver stores its config.
+    mail_server_config_path: '/tmp/docker-mailserver'
 
 services:
     # default configuration for services in *this* file
@@ -19,10 +21,22 @@ services:
     App\:
         resource: '../src/'
 
+    # Explicitly register app commands (prevents duplicate/empty tagging issues in prod)
+    App\Command\CreateAdminCommand:
+        autowire: true
+        autoconfigure: false
+        public: true
+        tags:
+            - { name: 'console.command', command: 'app:create-admin', description: 'Create an admin user for the dashboard' }
+
     # configure App\Service\RateLimiter with explicit arguments
     App\Service\RateLimiter:
         arguments:
             $redisUrl: '%env(REDIS_URL)%'
+
+    # Ensure TwoFactorEnabledCondition is public so the bundle can retrieve it
+    App\Security\TwoFactorEnabledCondition:
+        public: true
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

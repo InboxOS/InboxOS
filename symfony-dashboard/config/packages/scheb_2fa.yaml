@@ -1,9 +1,11 @@
 # See the configuration reference at https://symfony.com/bundles/SchebTwoFactorBundle/6.x/configuration.html
 scheb_two_factor:
+    # Only activate 2FA when the user has enabled it (opt-in).
+    two_factor_condition: App\Security\TwoFactorEnabledCondition
     security_tokens:
         - Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken
         - Symfony\Component\Security\Http\Authenticator\Token\PostAuthenticationToken
     totp:
         enabled: true
-        issuer: '%env(default:MailServer_Dashboard:TWO_FACTOR_ISSUER)%'
-        server_name: '%env(default:MailServer_Dashboard:TWO_FACTOR_ISSUER)%'
+        issuer: '%env(TWO_FACTOR_ISSUER)%'
+        server_name: '%env(TWO_FACTOR_ISSUER)%'

@@ -41,7 +41,8 @@ http {
                application/javascript application/xml+rss 
                application/json;
 
-    include /etc/nginx/sites-enabled/*;
+    # Only include rendered configs (avoid including *.template files)
+    include /etc/nginx/sites-enabled/*.conf;
 }
 
 # Mail proxy configuration
