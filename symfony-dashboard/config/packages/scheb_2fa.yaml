@@ -5,5 +5,5 @@ scheb_two_factor:
         - Symfony\Component\Security\Http\Authenticator\Token\PostAuthenticationToken
     totp:
         enabled: true
-        issuer: '%env(default:MailServer Dashboard:TWO_FACTOR_ISSUER)%'
-        server_name: '%env(default:MailServer Dashboard:TWO_FACTOR_ISSUER)%'
+        issuer: '%env(default:MailServer_Dashboard:TWO_FACTOR_ISSUER)%'
+        server_name: '%env(default:MailServer_Dashboard:TWO_FACTOR_ISSUER)%'
