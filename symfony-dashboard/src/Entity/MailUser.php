@@ -204,30 +204,6 @@ class MailUser implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
-    public function getQuotaUsed(): ?int
-    {
-        return $this->quotaUsed;
-    }
-
-    public function setQuotaUsed(?int $quotaUsed): self
-    {
-        $this->quotaUsed = $quotaUsed;
-
-        return $this;
-    }
-
-    public function getQuotaLimit(): ?int
-    {
-        return $this->quotaLimit;
-    }
-
-    public function setQuotaLimit(?int $quotaLimit): self
-    {
-        $this->quotaLimit = $quotaLimit;
-
-        return $this;
-    }
-
     /**
      * Backwards-compat for older Symfony security APIs.
      */
