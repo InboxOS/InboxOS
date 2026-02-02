@@ -17,7 +17,7 @@ class Domain
 
     #[ORM\Column(length: 255, unique: true)]
     #[Assert\NotBlank]
-    #[Assert\Hostname]
+    #[Assert\Domain]
     private ?string $name = null;
 
     #[ORM\Column]
@@ -75,48 +75,174 @@ class Domain
         $this->updatedAt = new \DateTimeImmutable();
     }
 
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+
     public function getName(): ?string
     {
         return $this->name;
     }
 
-    public function setName(string $name): self
+    public function setName(string $name): static
     {
         $this->name = $name;
 
         return $this;
     }
-    
+
+    public function isActive(): bool
+    {
+        return $this->isActive;
+    }
+
+    public function setIsActive(bool $isActive): static
+    {
+        $this->isActive = $isActive;
+
+        return $this;
+    }
+
+    public function isEnableSpf(): bool
+    {
+        return $this->enableSpf;
+    }
+
+    public function setEnableSpf(bool $enableSpf): static
+    {
+        $this->enableSpf = $enableSpf;
+
+        return $this;
+    }
+
     public function isEnableDkim(): bool
     {
         return $this->enableDkim;
     }
-    
+
+    public function setEnableDkim(bool $enableDkim): static
+    {
+        $this->enableDkim = $enableDkim;
+
+        return $this;
+    }
+
+    public function isEnableDmarc(): bool
+    {
+        return $this->enableDmarc;
+    }
+
+    public function setEnableDmarc(bool $enableDmarc): static
+    {
+        $this->enableDmarc = $enableDmarc;
+
+        return $this;
+    }
+
+    public function isEnableMtaSts(): bool
+    {
+        return $this->enableMtaSts;
+    }
+
+    public function setEnableMtaSts(bool $enableMtaSts): static
+    {
+        $this->enableMtaSts = $enableMtaSts;
+
+        return $this;
+    }
+
     public function getDkimSelector(): ?string
     {
         return $this->dkimSelector;
     }
-    
-    public function setDkimPrivateKey(?string $dkimPrivateKey): self
-    {
-        $this->dkimPrivateKey = $dkimPrivateKey;
 
-        return $this;
-    }
-
-    public function setDkimPublicKey(?string $dkimPublicKey): self
-    {
-        $this->dkimPublicKey = $dkimPublicKey;
-
-        return $this;
-    }
-
-    public function setDkimSelector(?string $dkimSelector): self
+    public function setDkimSelector(?string $dkimSelector): static
     {
         $this->dkimSelector = $dkimSelector;
 
         return $this;
     }
 
-    // Getters and setters...
+    public function getDkimPrivateKey(): ?string
+    {
+        return $this->dkimPrivateKey;
+    }
+
+    public function setDkimPrivateKey(?string $dkimPrivateKey): static
+    {
+        $this->dkimPrivateKey = $dkimPrivateKey;
+
+        return $this;
+    }
+
+    public function getDkimPublicKey(): ?string
+    {
+        return $this->dkimPublicKey;
+    }
+
+    public function setDkimPublicKey(?string $dkimPublicKey): static
+    {
+        $this->dkimPublicKey = $dkimPublicKey;
+
+        return $this;
+    }
+
+    public function getCreatedAt(): ?\DateTimeInterface
+    {
+        return $this->createdAt;
+    }
+
+    public function setCreatedAt(\DateTimeInterface $createdAt): static
+    {
+        $this->createdAt = $createdAt;
+
+        return $this;
+    }
+
+    public function getUpdatedAt(): ?\DateTimeInterface
+    {
+        return $this->updatedAt;
+    }
+
+    public function setUpdatedAt(\DateTimeInterface $updatedAt): static
+    {
+        $this->updatedAt = $updatedAt;
+
+        return $this;
+    }
+
+    public function getTenant(): ?Tenant
+    {
+        return $this->tenant;
+    }
+
+    public function setTenant(?Tenant $tenant): static
+    {
+        $this->tenant = $tenant;
+
+        return $this;
+    }
+
+    public function getUsers()
+    {
+        return $this->users;
+    }
+
+    public function getAliases()
+    {
+        return $this->aliases;
+    }
+
+    public function getQuotaMb(): ?int
+    {
+        return $this->quotaMb;
+    }
+
+    public function setQuotaMb(?int $quotaMb): static
+    {
+        $this->quotaMb = $quotaMb;
+
+        return $this;
+    }
 }
