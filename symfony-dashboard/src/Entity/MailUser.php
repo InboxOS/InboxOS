@@ -54,9 +54,14 @@ class MailUser implements UserInterface, PasswordAuthenticatedUserInterface
         $this->createdAt = new \DateTimeImmutable();
     }
 
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+
     public function getUserIdentifier(): string
     {
-        return $this->email;
+        return (string) $this->email;
     }
 
     public function getRoles(): array
@@ -65,6 +70,13 @@ class MailUser implements UserInterface, PasswordAuthenticatedUserInterface
         $roles[] = 'ROLE_USER';
 
         return array_unique($roles);
+    }
+
+    public function setRoles(array $roles): self
+    {
+        $this->roles = $roles;
+
+        return $this;
     }
 
     public function getPassword(): ?string
@@ -82,6 +94,42 @@ class MailUser implements UserInterface, PasswordAuthenticatedUserInterface
     public function eraseCredentials(): void
     {
         // If you store any temporary, sensitive data on the user, clear it here
+    }
+
+    public function isActive(): bool
+    {
+        return $this->isActive;
+    }
+
+    public function setIsActive(bool $isActive): self
+    {
+        $this->isActive = $isActive;
+
+        return $this;
+    }
+
+    public function getTwoFactorSecret(): ?string
+    {
+        return $this->twoFactorSecret;
+    }
+
+    public function setTwoFactorSecret(?string $twoFactorSecret): self
+    {
+        $this->twoFactorSecret = $twoFactorSecret;
+
+        return $this;
+    }
+
+    public function isTwoFactorEnabled(): bool
+    {
+        return $this->isTwoFactorEnabled;
+    }
+
+    public function setIsTwoFactorEnabled(bool $isTwoFactorEnabled): self
+    {
+        $this->isTwoFactorEnabled = $isTwoFactorEnabled;
+
+        return $this;
     }
 
     public function setEmail(string $email): self
@@ -132,5 +180,59 @@ class MailUser implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
-    // Getters and setters...
+    public function getCreatedAt(): ?\DateTimeInterface
+    {
+        return $this->createdAt;
+    }
+
+    public function setCreatedAt(\DateTimeInterface $createdAt): self
+    {
+        $this->createdAt = $createdAt;
+
+        return $this;
+    }
+
+    public function getLastLogin(): ?\DateTimeInterface
+    {
+        return $this->lastLogin;
+    }
+
+    public function setLastLogin(?\DateTimeInterface $lastLogin): self
+    {
+        $this->lastLogin = $lastLogin;
+
+        return $this;
+    }
+
+    public function getQuotaUsed(): ?int
+    {
+        return $this->quotaUsed;
+    }
+
+    public function setQuotaUsed(?int $quotaUsed): self
+    {
+        $this->quotaUsed = $quotaUsed;
+
+        return $this;
+    }
+
+    public function getQuotaLimit(): ?int
+    {
+        return $this->quotaLimit;
+    }
+
+    public function setQuotaLimit(?int $quotaLimit): self
+    {
+        $this->quotaLimit = $quotaLimit;
+
+        return $this;
+    }
+
+    /**
+     * Backwards-compat for older Symfony security APIs.
+     */
+    public function getUsername(): string
+    {
+        return $this->getUserIdentifier();
+    }
 }
