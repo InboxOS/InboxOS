@@ -1,0 +1,49 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Users{% endblock %}
+
+{% block body %}
+<div class="container-fluid">
+    <h1>Users</h1>
+
+    <table class="table table-striped">
+        <thead>
+        <tr>
+            <th>Email</th>
+            <th>Domain</th>
+            <th>Active</th>
+            <th>2FA</th>
+            <th>Quota (MB)</th>
+            <th>Last login</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for user in users %}
+            <tr>
+                <td>{{ user.email }}</td>
+                <td>{{ user.domain ? user.domain.name : '-' }}</td>
+                <td>
+                    {% if user.active %}
+                        <span class="badge bg-success">Yes</span>
+                    {% else %}
+                        <span class="badge bg-secondary">No</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if user.isTwoFactorEnabled %}
+                        <span class="badge bg-success">Enabled</span>
+                    {% else %}
+                        <span class="badge bg-secondary">Disabled</span>
+                    {% endif %}
+                </td>
+                <td>{{ user.quotaLimit ?? '-' }}</td>
+                <td>{{ user.lastLogin ? user.lastLogin|date('Y-m-d H:i') : '-' }}</td>
+            </tr>
+        {% else %}
+            <tr><td colspan="6">No users found.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
