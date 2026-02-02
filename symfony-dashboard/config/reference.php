@@ -1072,6 +1072,8 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             enable_csrf?: scalar|Param|null, // Default: false
  *             csrf_parameter?: scalar|Param|null, // Default: "_csrf_token"
  *             csrf_token_id?: scalar|Param|null, // Default: "two_factor"
+ *             csrf_header?: scalar|Param|null, // Default: null
+ *             csrf_token_manager?: scalar|Param|null, // Default: "scheb_two_factor.csrf_token_manager"
  *             provider?: scalar|Param|null, // Default: null
  *         },
  *         x509?: array{
@@ -1292,6 +1294,18 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     two_factor_token_factory?: scalar|Param|null, // Default: "scheb_two_factor.default_token_factory"
  *     two_factor_provider_decider?: scalar|Param|null, // Default: "scheb_two_factor.default_provider_decider"
  *     two_factor_condition?: scalar|Param|null, // Default: null
+ *     code_reuse_cache?: scalar|Param|null, // Default: null
+ *     code_reuse_cache_duration?: int|Param, // Default: 60
+ *     code_reuse_default_handler?: scalar|Param|null, // Default: null
+ *     totp?: bool|array{
+ *         enabled?: scalar|Param|null, // Default: false
+ *         form_renderer?: scalar|Param|null, // Default: null
+ *         issuer?: scalar|Param|null, // Default: null
+ *         server_name?: scalar|Param|null, // Default: null
+ *         leeway?: int|Param, // Default: 0
+ *         parameters?: list<scalar|Param|null>,
+ *         template?: scalar|Param|null, // Default: "@SchebTwoFactor/Authentication/form.html.twig"
+ *     },
  * }
  * @psalm-type DebugConfig = array{
  *     max_items?: int|Param, // Max number of displayed items past the first level, -1 means no limit. // Default: 2500
@@ -1501,16 +1515,6 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  * @psalm-type NotifyConfig = array{
  *     mercure_hub?: scalar|Param|null, // Mercube hub service id // Default: "mercure.hub.default"
  * }
- * @psalm-type WebpackEncoreConfig = array{
- *     output_path: scalar|Param|null, // The path where Encore is building the assets - i.e. Encore.setOutputPath()
- *     crossorigin?: false|"anonymous"|"use-credentials"|Param, // crossorigin value when Encore.enableIntegrityHashes() is used, can be false (default), anonymous or use-credentials // Default: false
- *     preload?: bool|Param, // preload all rendered script and link tags automatically via the http2 Link header. // Default: false
- *     cache?: bool|Param, // Enable caching of the entry point file(s) // Default: false
- *     strict_mode?: bool|Param, // Throw an exception if the entrypoints.json file is missing or an entry is missing from the data // Default: true
- *     builds?: array<string, scalar|Param|null>,
- *     script_attributes?: array<string, scalar|Param|null>,
- *     link_attributes?: array<string, scalar|Param|null>,
- * }
  * @psalm-type SymfonycastsVerifyEmailConfig = array{
  *     lifetime?: int|Param, // The length of time in seconds that a signed URI is valid for after it is created. // Default: 3600
  * }
@@ -1561,6 +1565,30 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         ...<mixed>
  *     },
  * }
+ * @psalm-type DoctrineMigrationsConfig = array{
+ *     enable_service_migrations?: bool|Param, // Whether to enable fetching migrations from the service container. // Default: false
+ *     migrations_paths?: array<string, scalar|Param|null>,
+ *     services?: array<string, scalar|Param|null>,
+ *     factories?: array<string, scalar|Param|null>,
+ *     storage?: array{ // Storage to use for migration status metadata.
+ *         table_storage?: array{ // The default metadata storage, implemented as a table in the database.
+ *             table_name?: scalar|Param|null, // Default: null
+ *             version_column_name?: scalar|Param|null, // Default: null
+ *             version_column_length?: scalar|Param|null, // Default: null
+ *             executed_at_column_name?: scalar|Param|null, // Default: null
+ *             execution_time_column_name?: scalar|Param|null, // Default: null
+ *         },
+ *     },
+ *     migrations?: list<scalar|Param|null>,
+ *     connection?: scalar|Param|null, // Connection name to use for the migrations database. // Default: null
+ *     em?: scalar|Param|null, // Entity manager name to use for the migrations database (available when doctrine/orm is installed). // Default: null
+ *     all_or_nothing?: scalar|Param|null, // Run all migrations in a transaction. // Default: false
+ *     check_database_platform?: scalar|Param|null, // Adds an extra check in the generated migrations to allow execution only on the same platform as they were initially generated on. // Default: true
+ *     custom_template?: scalar|Param|null, // Custom template path for generated migration classes. // Default: null
+ *     organize_migrations?: scalar|Param|null, // Organize migrations mode. Possible values are: "BY_YEAR", "BY_YEAR_AND_MONTH", false // Default: false
+ *     enable_profiler?: bool|Param, // Whether or not to enable the profiler collector to calculate and visualize migration status. This adds some queries overhead. // Default: false
+ *     transactional?: bool|Param, // Whether or not to wrap migrations in a single transaction. // Default: true
+ * }
  * @psalm-type ConfigType = array{
  *     imports?: ImportsConfig,
  *     parameters?: ParametersConfig,
@@ -1574,9 +1602,9 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     stimulus?: StimulusConfig,
  *     mercure?: MercureConfig,
  *     notify?: NotifyConfig,
- *     webpack_encore?: WebpackEncoreConfig,
  *     symfonycasts_verify_email?: SymfonycastsVerifyEmailConfig,
  *     twig_extra?: TwigExtraConfig,
+ *     doctrine_migrations?: DoctrineMigrationsConfig,
  *     "when@dev"?: array{
  *         imports?: ImportsConfig,
  *         parameters?: ParametersConfig,
@@ -1592,9 +1620,9 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         stimulus?: StimulusConfig,
  *         mercure?: MercureConfig,
  *         notify?: NotifyConfig,
- *         webpack_encore?: WebpackEncoreConfig,
  *         symfonycasts_verify_email?: SymfonycastsVerifyEmailConfig,
  *         twig_extra?: TwigExtraConfig,
+ *         doctrine_migrations?: DoctrineMigrationsConfig,
  *     },
  *     "when@prod"?: array{
  *         imports?: ImportsConfig,
@@ -1609,9 +1637,9 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         stimulus?: StimulusConfig,
  *         mercure?: MercureConfig,
  *         notify?: NotifyConfig,
- *         webpack_encore?: WebpackEncoreConfig,
  *         symfonycasts_verify_email?: SymfonycastsVerifyEmailConfig,
  *         twig_extra?: TwigExtraConfig,
+ *         doctrine_migrations?: DoctrineMigrationsConfig,
  *     },
  *     "when@test"?: array{
  *         imports?: ImportsConfig,
@@ -1626,9 +1654,9 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         stimulus?: StimulusConfig,
  *         mercure?: MercureConfig,
  *         notify?: NotifyConfig,
- *         webpack_encore?: WebpackEncoreConfig,
  *         symfonycasts_verify_email?: SymfonycastsVerifyEmailConfig,
  *         twig_extra?: TwigExtraConfig,
+ *         doctrine_migrations?: DoctrineMigrationsConfig,
  *     },
  *     ...<string, ExtensionType|array{ // extra keys must follow the when@%env% pattern or match an extension alias
  *         imports?: ImportsConfig,

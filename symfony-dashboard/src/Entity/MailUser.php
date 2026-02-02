@@ -3,12 +3,15 @@
 namespace App\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
+use Scheb\TwoFactorBundle\Model\Totp\TotpConfiguration;
+use Scheb\TwoFactorBundle\Model\Totp\TotpConfigurationInterface;
+use Scheb\TwoFactorBundle\Model\Totp\TwoFactorInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 
 #[ORM\Entity]
 #[ORM\Table(name: 'mail_users')]
-class MailUser implements UserInterface, PasswordAuthenticatedUserInterface
+class MailUser implements UserInterface, PasswordAuthenticatedUserInterface, TwoFactorInterface
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -130,6 +133,26 @@ class MailUser implements UserInterface, PasswordAuthenticatedUserInterface
         $this->isTwoFactorEnabled = $isTwoFactorEnabled;
 
         return $this;
+    }
+
+    public function isTotpAuthenticationEnabled(): bool
+    {
+        return $this->isTwoFactorEnabled && !empty($this->twoFactorSecret);
+    }
+
+    public function getTotpAuthenticationUsername(): string
+    {
+        return $this->getUserIdentifier();
+    }
+
+    public function getTotpAuthenticationConfiguration(): ?TotpConfigurationInterface
+    {
+        if (!$this->isTotpAuthenticationEnabled()) {
+            return null;
+        }
+
+        // Google Authenticator compatible defaults: sha1 / 30s / 6 digits.
+        return new TotpConfiguration($this->twoFactorSecret, TotpConfiguration::ALGORITHM_SHA1, 30, 6);
     }
 
     public function setEmail(string $email): self

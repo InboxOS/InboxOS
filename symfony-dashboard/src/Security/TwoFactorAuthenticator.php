@@ -3,46 +3,36 @@
 namespace App\Security;
 
 use Scheb\TwoFactorBundle\Security\TwoFactor\Provider\Totp\TotpAuthenticatorInterface;
-use Symfony\Component\Security\Core\User\UserInterface;
+use Scheb\TwoFactorBundle\Model\Totp\TwoFactorInterface;
 
 class TwoFactorAuthenticator implements TotpAuthenticatorInterface
 {
-    public function checkCode(UserInterface $user, string $code): bool
+    public function checkCode(TwoFactorInterface $user, string $code): bool
     {
-        if (!method_exists($user, 'getTwoFactorSecret')) {
-            return false;
-        }
-
-        /** @var mixed $secret */
-        $secret = $user->getTwoFactorSecret();
-        if (!is_string($secret) || $secret === '') {
+        $config = $user->getTotpAuthenticationConfiguration();
+        if ($config === null) {
             return false;
         }
 
         // Use Google Authenticator compatible validation
-        return $this->verifyCode($secret, $code);
+        return $this->verifyCode($config->getSecret(), $code);
     }
 
-    public function getQRContent(UserInterface $user): string
+    public function getQRContent(TwoFactorInterface $user): string
     {
-        if (!method_exists($user, 'getTwoFactorSecret')) {
-            return '';
-        }
-
-        /** @var mixed $secret */
-        $secret = $user->getTwoFactorSecret();
-        if (!is_string($secret) || $secret === '') {
+        $config = $user->getTotpAuthenticationConfiguration();
+        if ($config === null) {
             return '';
         }
 
         $issuer = 'MailServer Dashboard';
-        $accountName = method_exists($user, 'getEmail') ? (string) $user->getEmail() : $user->getUserIdentifier();
+        $accountName = $user->getTotpAuthenticationUsername();
 
         return sprintf(
             'otpauth://totp/%s:%s?secret=%s&issuer=%s',
             rawurlencode($issuer),
             rawurlencode($accountName),
-            $secret,
+            $config->getSecret(),
             rawurlencode($issuer)
         );
     }
