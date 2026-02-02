@@ -9,8 +9,15 @@ class TwoFactorAuthenticator implements TotpAuthenticatorInterface
 {
     public function checkCode(UserInterface $user, string $code): bool
     {
-        // Implement TOTP validation
+        if (!method_exists($user, 'getTwoFactorSecret')) {
+            return false;
+        }
+
+        /** @var mixed $secret */
         $secret = $user->getTwoFactorSecret();
+        if (!is_string($secret) || $secret === '') {
+            return false;
+        }
 
         // Use Google Authenticator compatible validation
         return $this->verifyCode($secret, $code);
@@ -18,9 +25,18 @@ class TwoFactorAuthenticator implements TotpAuthenticatorInterface
 
     public function getQRContent(UserInterface $user): string
     {
+        if (!method_exists($user, 'getTwoFactorSecret')) {
+            return '';
+        }
+
+        /** @var mixed $secret */
         $secret = $user->getTwoFactorSecret();
+        if (!is_string($secret) || $secret === '') {
+            return '';
+        }
+
         $issuer = 'MailServer Dashboard';
-        $accountName = $user->getEmail();
+        $accountName = method_exists($user, 'getEmail') ? (string) $user->getEmail() : $user->getUserIdentifier();
 
         return sprintf(
             'otpauth://totp/%s:%s?secret=%s&issuer=%s',
